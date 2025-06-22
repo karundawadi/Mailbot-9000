@@ -1,5 +1,6 @@
 from imaplib import IMAP4_SSL
 from configparser import ConfigParser
+from typing import Optional
 from mail.imapclientwrapper import ImapClientWrapper
 from re import search
 from email import message_from_bytes
@@ -49,6 +50,8 @@ class ImapService:
     
     def fetch_email_ids(self, mailbox_name: str) -> list:
         try:
+            if not self.imap_client or not self.imap_client.noop()[0] == 'OK':
+                self.imap_client = self.client_wrapper.initialize()
             self.__select_mailbox(mailbox_name)
             _, email_ids = self.imap_client.search(None, 'UNSEEN')
             formatted_ids = self.__format_email_ids(email_ids)
@@ -180,8 +183,10 @@ class ImapService:
         
         return body
     
-    def fetch_email(self, email_id: str) -> dict:
+    def fetch_email(self, email_id: str) -> Optional[EmailWrapper]:
         try:
+            if not self.imap_client or not self.imap_client.noop()[0] == 'OK':
+                self.imap_client = self.client_wrapper.initialize()
             raw_email = self.__fetch_raw_email(email_id)            
             msg = message_from_bytes(raw_email)
             body = self.__extract_email_body(msg)
@@ -189,7 +194,7 @@ class ImapService:
         except Exception as e:
             print(f"Failed to fetch email with ID {email_id}: {e}")
             print_exc()
-            return {}
+            return None
 
     def __importance_level_to_str(self, importance: ImportanceLevel) -> str:
         if importance == ImportanceLevel.LEAST_IMPORTANT:

@@ -4,5 +4,9 @@ mailbot9000
 .pytest_cache/
 **/cache/*.txt
 **/cache/*.csv
+**/.DS_Store
 .DS_Store
 DS_Store
+*.log
+*.txt
+__pycache__

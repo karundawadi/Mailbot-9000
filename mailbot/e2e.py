@@ -17,7 +17,7 @@ if __name__ == "__main__":
     less_important_folder = config["IMAP"]["less_important_folder"]
     llm = LLM(config)
     mailbox_list = imapService.get_mailbox_list()
-    exception_list = [f"{most_important_folder}", f"{medium_important_folder}", f"{less_important_folder}"]
+    exception_list = [f"{most_important_folder}", f"{medium_important_folder}", f"{less_important_folder}", f"Important", f"Sent", f"Drafts", f"Trash", f"Spam", f"Junk", f"Archive"]    
     for mailbox in mailbox_list:
         if mailbox in exception_list:
             print(mailbox, "is in the exception list. Skipping...")
@@ -25,6 +25,9 @@ if __name__ == "__main__":
         email_ids = imapService.fetch_email_ids(mailbox)
         for email_id in email_ids:
             email_data: EmailWrapper = imapService.fetch_email(email_id)
+            if not email_data:
+                print(f"Could not process email ID {email_id}, skipping.")
+                continue # Move to the next email
             importance_level: Optional[ImportanceLevel] = cacheService.exists(email_data)
             if importance_level:
                 print(f'Email with subject {email_data.subject} already evaluated and marked as {importance_level.value}')

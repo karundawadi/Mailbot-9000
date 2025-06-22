@@ -81,9 +81,15 @@ class Cache:
         with open(self.cache_file_path, 'r', newline='') as file:
             reader = DictReader(file) 
             for row in reader:
+                if 'email_subject_hash' not in row or 'sender' not in row:
+                    return None
+                
                 if row['email_subject_hash'] == subject_hash:
                     return self.__evaluate_row(row)
                 
                 if row['sender'] == email.sender:
                     return self.__evaluate_row(row)
         return None
+    
+    # TODO - implement a method to clear the cache
+    # TODO - implement a method in which cache is evaluated three times. if it is still in the same category, then increment to exponential.

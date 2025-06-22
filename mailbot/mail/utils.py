@@ -6,6 +6,7 @@ from email import message_from_string
 from email.message import Message
 import html2text
 
+# Written by LLM (se with caution)
 def extract_best_body(raw_email: str) -> str:
     try:
         if raw_email.lstrip().lower().startswith('<!doctype') or raw_email.lstrip().lower().startswith('<html'):
