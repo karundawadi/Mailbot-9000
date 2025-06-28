@@ -7,3 +7,4 @@ class AvailableModels(Enum):
     GEMMA_3_1_B = "gemma3:1b"
     GEMMA_3_4_B = "gemma3:4b"
     DEEPSEEK_R1_8_B = "deepseek-r1:8b"
+    GEMMA_3_N = "gemma3n:latest"

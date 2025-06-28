@@ -5,7 +5,7 @@ from json import dumps
 from prompt.prompt import Prompt
 
 class LLM:
-    def __init__(self, config: ConfigParser, model_name: AvailableModels = AvailableModels.DEEPSEEK_R1_8_B):
+    def __init__(self, config: ConfigParser, model_name: AvailableModels = AvailableModels.GEMMA_3_N):
         self.model_name: str = model_name.value
         self.ollama_url: str = config["OLLAMA"]["ollama_base_url"]
         self.think: bool = config.getboolean("OLLAMA", "think", fallback=False)

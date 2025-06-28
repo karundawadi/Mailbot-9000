@@ -2,6 +2,7 @@ from mail.emailwrapper import EmailWrapper
 from prompt.prompt import Prompt
 from re import findall, DOTALL
 from json import loads
+from loguru import logger
 
 # This prompt is custom-built and maynot be suitable for all use cases.
 class ImportanceEvaulator(Prompt):
@@ -151,7 +152,7 @@ class ImportanceEvaulator(Prompt):
                 "reasoning": obj.get("reasoning", "Missing reasoning.")
             }
         except Exception as e:
-            print(f"Failed to parse response JSON: {e}")
+            logger.info(f"Failed to parse response JSON: {e}")
             return {
                 "importance": 0.0,
                 "confidence": 0.0,

@@ -6,7 +6,7 @@ from re import search
 from email import message_from_bytes
 from mail.emailwrapper import EmailWrapper
 from cache.cache import ImportanceLevel
-from traceback import print_exc
+from loguru import logger
 
 class ImapService:
     def __init__(self, config: ConfigParser):
@@ -21,7 +21,7 @@ class ImapService:
             _, mailboxes = self.imap_client.list()
             return [self.__decode_mailbox_name(mailbox) for mailbox in mailboxes]
         except Exception as e:
-            print(f"Failed to retrieve mailbox list: {e}")
+            logger.info(f"Failed to retrieve mailbox list: {e}")
             return []
     
     def __decode_mailbox_name(self, mailbox_name: bytes) -> str:
@@ -32,7 +32,7 @@ class ImapService:
                 return match.group(1)
             return decoded
         except Exception as e:
-            print(f"Failed to decode mailbox name '{mailbox_name}': {e}")
+            logger.info(f"Failed to decode mailbox name '{mailbox_name}': {e}")
             return ""
     
     def __select_mailbox(self, mailbox_name: str) -> None:
@@ -55,20 +55,23 @@ class ImapService:
             self.__select_mailbox(mailbox_name)
             _, email_ids = self.imap_client.search(None, 'UNSEEN')
             formatted_ids = self.__format_email_ids(email_ids)
-            print(f"Found {len(formatted_ids)} unseen emails in {mailbox_name}")
+            logger.info(f"Found {len(formatted_ids)} unseen emails in {mailbox_name}")
             return formatted_ids
         except Exception as e:
-            print(f"Failed to fetch emails: {e}")
+            logger.info(f"Failed to fetch emails: {e}")
             return []
     
     def __fetch_raw_email(self, email_id: str) -> bytes:
         # Method 1: Standard Body fetch
+        logger.debug(f"Attempting to fetch email ID {email_id} with (RFC822)")
         status, data = self.imap_client.fetch(str(email_id), '(RFC822)')            
         if status != 'OK':
+            logger.warning(f"Failed to fetch email ID {email_id} with (RFC822). Status: {status}")
             raise Exception(f"Failed to fetch email with ID {email_id}: {status}")
         
         # Validate the fetch response
         if not data or len(data) == 0:
+            logger.warning(f"No data returned for email ID {email_id} with (RFC822).")
             raise Exception(f"No data returned for email ID {email_id}")
         
         # Handle different response formats
@@ -83,6 +86,7 @@ class ImapService:
             response_str = data[0].decode('utf-8')
             if '()' in response_str:                    
                 # Try BODY.PEEK[]
+                logger.debug(f"Attempting to fetch email ID {email_id} with (BODY.PEEK[])")
                 status2, data2 = self.imap_client.fetch(str(email_id), '(BODY.PEEK[])')
                 if status2 == 'OK' and data2:
                     if isinstance(data2[0], tuple) and len(data2[0]) >= 2:
@@ -154,7 +158,7 @@ class ImapService:
                             elif payload is not None and isinstance(payload, str):
                                 body = payload
                     except Exception as part_error:
-                        print(f"Error processing email part: {part_error}")
+                        logger.info(f"Error processing email part: {part_error}")
                         continue
             else:
                 # Handle simple (non-multipart) messages
@@ -170,7 +174,7 @@ class ImapService:
                         if isinstance(payload, str):
                             body = payload
                 except Exception as payload_error:
-                    print(f"Error getting payload: {payload_error}")
+                    logger.info(f"Error getting payload: {payload_error}")
                     # Last resort - try to get payload as string
                     try:
                         body = str(msg.get_payload())
@@ -178,7 +182,7 @@ class ImapService:
                         body = "Could not extract email body"
         
         except Exception as e:
-            print(f"Error extracting email body: {e}")
+            logger.info(f"Error extracting email body: {e}")
             body = "Error extracting email body"
         
         return body
@@ -192,8 +196,7 @@ class ImapService:
             body = self.__extract_email_body(msg)
             return self.__construct_email(msg, body)
         except Exception as e:
-            print(f"Failed to fetch email with ID {email_id}: {e}")
-            print_exc()
+            logger.exception(f"Failed to fetch email with ID {email_id}: {e}")
             return None
 
     def __importance_level_to_str(self, importance: ImportanceLevel) -> str:
@@ -215,9 +218,9 @@ class ImapService:
             self.imap_client.copy(email_id, f'"{folder_to_move}"')
             self.mark_email_as_deleted(email_id)
             self.imap_client.expunge()
-            print(f"Email with ID {email_id} moved to {folder_to_move}.")
+            logger.info(f"Email with ID {email_id} moved to {folder_to_move}.")
         except Exception as e:
-            print(f"Failed to move email with ID {email_id} to folder: {e}. Email is marked unread")
+            logger.info(f"Failed to move email with ID {email_id} to folder: {e}. Email is marked unread")
             self.mark_email_as_unread(email_id)
     
     def move_to_folder_and_mark_unread(self, email_id: str, importance: ImportanceLevel) -> None:
@@ -230,35 +233,35 @@ class ImapService:
             self.mark_email_as_read(email_id)
             self.mark_email_as_deleted(email_id)
             self.imap_client.expunge()
-            print(f"Email with ID {email_id} moved to {folder_to_move}.")
+            logger.info(f"Email with ID {email_id} moved to {folder_to_move}.")
         except Exception as e:
-            print(f"Failed to move email with ID {email_id} to folder: {e}. Email is marked unread")
+            logger.info(f"Failed to move email with ID {email_id} to folder: {e}. Email is marked unread")
             self.mark_email_as_unread(email_id)
 
     def mark_email_as_read(self, email_id: str) -> None:
         try:
             self.imap_client.store(email_id, '+FLAGS', ('\\Seen',))
-            print(f"Email with ID {email_id} marked as read.")
+            logger.info(f"Email with ID {email_id} marked as read.")
         except Exception as e:
-            print(f"Failed to mark email with ID {email_id} as read: {e}")
+            logger.info(f"Failed to mark email with ID {email_id} as read: {e}")
 
     def mark_email_as_deleted(self, email_id: str) -> None:
         try:
             self.imap_client.store(email_id, '+FLAGS', '\\Deleted')            
-            print(f"Email with ID {email_id} marked as deleted.")
+            logger.info(f"Email with ID {email_id} marked as deleted.")
         except Exception as e:
-            print(f"Failed to mark email with ID {email_id} as deleted: {e}")
+            logger.info(f"Failed to mark email with ID {email_id} as deleted: {e}")
 
     def mark_email_as_unread(self, email_id: str) -> None:
         try:
             self.imap_client.store(email_id, '-FLAGS', ('\\Seen',))
-            print(f"Email with ID {email_id} marked as unread.")
+            logger.info(f"Email with ID {email_id} marked as unread.")
         except Exception as e:
-            print(f"Failed to mark email with ID {email_id} as unread: {e}")
+            logger.info(f"Failed to mark email with ID {email_id} as unread: {e}")
 
     def shutdown(self) -> None:
         try:
             self.imap_client.logout()
-            print("Disconnected from IMAP server.")
+            logger.info("Disconnected from IMAP server.")
         except Exception as e:
-            print(f"Failed to disconnect: {e}")
+            logger.info(f"Failed to disconnect: {e}")

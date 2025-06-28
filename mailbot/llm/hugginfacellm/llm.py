@@ -2,6 +2,7 @@ from llm.hugginfacellm.available_models import AvailableModels
 from configparser import ConfigParser
 from torch import cuda, device as torch_device, backends, bfloat16
 from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
+from loguru import logger
 
 class LLM:
     def __init__(self, config: ConfigParser, model_name: AvailableModels = AvailableModels.GOOGLE_GEMMA_2_B_IT):
@@ -16,15 +17,15 @@ class LLM:
     def __set_torch_device(self) -> None:
         if cuda.is_available():
             device = torch_device("cuda")
-            print(f"Using NVIDIA CUDA (GPU) for acceleration.")
+            logger.info(f"Using NVIDIA CUDA (GPU) for acceleration.")
         elif backends.mps.is_available():
             device = torch_device("mps")
-            print(f"Using Apple MPS (GPU) for acceleration.")
+            logger.info(f"Using Apple MPS (GPU) for acceleration.")
         else:
             device = torch_device("cpu")
-            print(f"Neither CUDA nor MPS (GPU) available. Falling back to CPU. Performance will be slower.")
+            logger.info(f"Neither CUDA nor MPS (GPU) available. Falling back to CPU. Performance will be slower.")
 
-        print(f"Current device: {device}")
+        logger.info(f"Current device: {device}")
         self.device: torch_device  = device
     
     def __create_tokenizer(self) -> None:
@@ -61,14 +62,14 @@ class LLM:
             self.__create_model()
             self.__create_generator()
         except Exception as e:
-            print(f"Unable to setup llm package: {e}")
+            logger.info(f"Unable to setup llm package: {e}")
             raise
 
     def generate(self, prompt: str) -> str:
         if not hasattr(self, 'generator'):
             raise ValueError("Generator is not set up. Call setup() first.")
         output = self.generator(prompt, max_new_tokens=self.max_new_tokens)
-        print(output)
+        logger.info(output)
         return output[0]['generated_text'] if output else ""
     
     def tear_down(self):
@@ -85,4 +86,4 @@ class LLM:
         if hasattr(self, 'device'):
             del self.device
             self.device = None        
-        print("Garbage collection complete.")
+        logger.info("Garbage collection complete.")

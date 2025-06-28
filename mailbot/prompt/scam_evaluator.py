@@ -2,6 +2,7 @@ from mail.emailwrapper import EmailWrapper
 from prompt.prompt import Prompt
 from re import findall, DOTALL
 from json import loads
+from loguru import logger
 
 class ScamEvaluator(Prompt):
     def __init__(self, email: EmailWrapper):
@@ -114,7 +115,7 @@ class ScamEvaluator(Prompt):
                 "reasoning": obj.get("reasoning", "Missing reasoning.")
             }
         except Exception as e:
-            print(f"Failed to parse response JSON: {e}")
+            logger.info(f"Failed to parse response JSON: {e}")
             return {
                 "scam": 0,
                 "confidence": 0.0,
