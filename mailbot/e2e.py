@@ -9,7 +9,7 @@ from prompt.importance_evaluator import ImportanceEvaulator
 from loguru import logger
 
 
-def process_mailbox(imapService, cacheService, llm, mailbox: str, max_retries: int = 2):
+def process_mailbox(imapService: ImapService, cacheService: Optional[Cache], llm: LLM, mailbox: str, max_retries: int = 2):
     attempts = 0
     while attempts <= max_retries:
         email_ids = imapService.fetch_email_ids(mailbox)
@@ -21,9 +21,12 @@ def process_mailbox(imapService, cacheService, llm, mailbox: str, max_retries: i
             if not email_data:
                 logger.warning(f"Failed to fetch email ID {email_id}. Restarting and retrying whole mailbox...")
                 failed = True
-                break  # Exit this pass and restart everything
+                break 
 
-            importance_level: Optional[ImportanceLevel] = cacheService.exists(email_data)
+            importance_level: Optional[ImportanceLevel] = None
+            if cacheService:
+                importance_level = cacheService.exists(email_data)
+
             if importance_level:
                 logger.info(f'Email "{email_data.subject}" already marked as {importance_level.value}')
                 imapService.move_to_folder_and_mark_unread(email_id, importance_level)
@@ -40,12 +43,16 @@ def process_mailbox(imapService, cacheService, llm, mailbox: str, max_retries: i
                     if llm_response["importance"] > 0.4 else
                     ImportanceLevel.LEAST_IMPORTANT
                 )
-                cacheService.add_record(email_data, importance, llm_response["reasoning"])
-                logger.info(f'Email "{email_data.subject}" cached and moved to {importance.value}')
-                imapService.move_to_folder_and_mark_unread(email_id, importance)
+                if cacheService:
+                    cacheService.add_record(email_data, importance, llm_response["reasoning"])
+                    logger.info(f'Email "{email_data.subject}" cached and moved to {importance.value}')
+                else:
+                    logger.info(f'Email "{email_data.subject}" processed and moved to {importance.value} (cache disabled)')
 
+                imapService.move_to_folder_and_mark_unread(email_id, importance)
+        
         if not failed:
-            break  # Completed mailbox without any fetch failure
+            break
         else:
             imapService.restart()
             attempts += 1
@@ -56,8 +63,15 @@ def process_mailbox(imapService, cacheService, llm, mailbox: str, max_retries: i
 
 def process_emails(config: configparser.ConfigParser):
     imapService = ImapService(config)
-    cacheService = Cache(config)
     llm = LLM(config)
+
+    cache_enabled = config.getboolean("CACHE", "cache_enabled", fallback=True)
+    cacheService: Optional[Cache] = None
+    if cache_enabled:
+        cacheService = Cache(config)
+        logger.info("Cache service initialized.")
+    else:
+        logger.info("Cache service disabled by configuration.")
 
     most_important_folder = config["IMAP"]["most_important_folder"]
     medium_important_folder = config["IMAP"]["medium_important_folder"]
