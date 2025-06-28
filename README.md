@@ -1,20 +1,19 @@
 # Mailbot-9000
 
-A smart email management bot that can automatically remove spam emails. It supports both Hugging Face models and Ollama for local inference.
+An intelligent email management system that automatically classifies incoming emails by importance level using local LLM models (ollama api) and organizes them into appropriate folders.
 
 ## Features
 
-- Automated email processing and response generation
-- Support for both Hugging Face and Ollama AI models
-- Configurable IMAP settings for different email providers
-- Spam folder management
-- Customizable AI model parameters
+- **Automated Email Classification**: Uses passed in config to classify email in three categories: highly important (must be seen), medium important (should be seen; but later), low important (can be seen at spare time)
+- **IMAP integration**: This is primarly designed for iCloud as Apple's iCloud email does not provide a lot of features. 
+- **Caching**: Uses a local `.csv` file to store already seen emails making less calls to `llm model`
+- **Configurable**: Manages everything through `.config` files
 
 ## Prerequisites
 
 - Python 3.9 or higher
-- For Ollama: A working Ollama installation (recommended for personal use)
-- (If using Huggingface, you will need to change codebase to make this work. Currenlty, very limited support) For Hugging Face: A Hugging Face account and API token
+- For Ollama: A working Ollama installation (recommended for personal use. Download from: https://ollama.com)
+    - ***If using Huggingface, you will need to change codebase to make this work. Currenlty, very limited support) For Hugging Face: A Hugging Face account and API token***
 
 ## Installation
 
@@ -26,68 +25,110 @@ A smart email management bot that can automatically remove spam emails. It suppo
 
 2. Make the setup script executable and run it:
    ```bash
-   chmod +x setup.sh
-   source setup.sh
+   chmod +x driver.sh
    ```
 
-3. Configure your settings:
+3. Configure `PROJECT_DIR` in `driver.sh` to match your directory. Directory can be found using `pwd`
+
+4. Configure your settings:
    - Copy `mailbot/config/template_config.ini` to `mailbot/config/config.ini`
    - Edit `config.ini` with your email and AI model settings
 
-## Configuration
-
-### Email Settings (IMAP)
-In your `config.ini`, configure the following IMAP settings:
-```ini
-[IMAP]
-server = your.email.server  # e.g., imap.gmail.com
-port = your_port           # e.g., 993
-username = your_email
-password = your_password
-spam_folder = Junk        # or your spam folder name
-```
-
-### AI Model Setup
-
-#### Option 1: Ollama (Recommended for Personal Use)
-1. Install Ollama from [ollama.ai](https://ollama.ai)
-2. Configure Ollama settings in `config.ini`:
-   ```ini
-   [OLLAMA]
-   ollama_base_url = http://localhost:11434/api
-   stream = false
-   keep_alive = 5
-   think = false
-   ```
-3. Make sure you have the desired model installed in Ollama
-
-#### Option 2: Hugging Face
-1. Create a Hugging Face account and get your API token
-2. Configure Hugging Face settings in `config.ini`:
-   ```ini
-   [HUGGINGFACE]
-   token = your_huggingface_token
-   max_new_tokens = 500
-   ```
-
-## Usage
-
-After configuration:
-
-1. Make sure your virtual environment is activated:
-   ```bash
-   source mailbot9000/bin/activate
-   ```
-
-2. Run the main script:
-   ```bash
-   python __init__.py
-   ```
+5. Run `./driver.sh`. All outputs will be recorded on `python_run.log`
 
 ## Contributing
 
 Contributions are welcome! Please feel free to submit pull requests.
 
-## Usecases
-1. When to notify users
-2. Less spam emails 
+## High level mermaid sequence diagram
+```mermaid
+sequenceDiagram
+    participant Main as Main Process
+    participant Config as ConfigParser
+    participant IMAP as ImapService
+    participant Cache as Cache System
+    participant LLM as LLM Service
+    participant Prompt as Prompt System
+    participant Email as EmailWrapper
+
+    Note over Main: System Initialization
+    Main->>Config: Load config.ini
+    Config-->>Main: Configuration loaded
+    Main->>IMAP: Initialize IMAP connection
+    IMAP->>IMAP: Create client & connect
+    IMAP-->>Main: Connection established
+    Main->>Cache: Initialize cache system
+    Cache->>Cache: Ensure CSV file exists
+    Cache-->>Main: Cache ready
+    Main->>LLM: Initialize LLM (Ollama/HuggingFace)
+    LLM->>LLM: Setup model & tokenizer
+    LLM-->>Main: LLM ready
+
+    Note over Main: Email Processing Loop
+    Main->>IMAP: Get mailbox list
+    IMAP-->>Main: List of mailboxes
+    
+    loop For each mailbox (excluding exceptions)
+        Main->>IMAP: Fetch unread email IDs
+        IMAP->>IMAP: Search for UNSEEN emails
+        IMAP-->>Main: List of email IDs
+        
+        loop For each email ID
+            Main->>IMAP: Fetch email content
+            IMAP->>IMAP: Retrieve raw email data
+            IMAP->>IMAP: Parse email headers & body
+            IMAP->>Email: Create EmailWrapper
+            Email-->>IMAP: Email object created
+            IMAP-->>Main: EmailWrapper object
+            
+            alt Email fetch failed
+                Main->>Main: Log error & skip to next email
+            else Email fetched successfully
+                Main->>Cache: Check if email exists
+                Cache->>Cache: Hash subject & check sender
+                Cache-->>Main: ImportanceLevel or None
+                
+                alt Email found in cache
+                    Main->>IMAP: Move to appropriate folder
+                    IMAP->>IMAP: Mark as unread & move
+                    IMAP-->>Main: Email moved
+                    Main->>Main: Log: Email already classified
+                else Email not in cache
+                    Main->>Prompt: Create ImportanceEvaluator
+                    Prompt->>Prompt: Build classification prompt
+                    Prompt-->>Main: Prompt object ready
+                    
+                    Main->>LLM: Generate classification
+                    LLM->>LLM: Process prompt with model
+                    LLM-->>Main: Classification response
+                    
+                    alt Valid LLM response
+                        Main->>Main: Determine ImportanceLevel
+                        Note over Main: 0.75+ = MOST_IMPORTANT<br/>0.4-0.75 = MEDIUM_IMPORTANT<br/>0.0-0.4 = LEAST_IMPORTANT
+                        
+                        Main->>Cache: Add classification record
+                        Cache->>Cache: Store in CSV file
+                        Cache-->>Main: Record added
+                        
+                        Main->>IMAP: Move to appropriate folder
+                        IMAP->>IMAP: Mark as unread & move to folder
+                        IMAP-->>Main: Email moved & classified
+                        
+                        Main->>Main: Log: Email classified & moved
+                    else Invalid LLM response
+                        Main->>Main: Log error & skip email
+                    end
+                end
+            end
+        end
+    end
+    
+    Note over Main: Cleanup
+    Main->>IMAP: Shutdown connection
+    IMAP->>IMAP: Logout from server
+    IMAP-->>Main: Connection closed
+    Main->>Main: Process complete
+
+    Note over Main,Email: Error Handling
+    Note over Main: Throughout the process:<br/>- Network errors are handled gracefully<br/>- Invalid emails are skipped<br/>- Cache failures don't stop processing<br/>- LLM errors are logged and handled
+```
