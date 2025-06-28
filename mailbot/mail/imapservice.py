@@ -189,7 +189,7 @@ class ImapService:
     
     def fetch_email(self, email_id: str) -> Optional[EmailWrapper]:
         try:
-            if not self.imap_client or not self.imap_client.noop()[0] == 'OK':
+            if not self.imap_client:
                 self.imap_client = self.client_wrapper.initialize()
             raw_email = self.__fetch_raw_email(email_id)            
             msg = message_from_bytes(raw_email)
@@ -258,6 +258,17 @@ class ImapService:
             logger.info(f"Email with ID {email_id} marked as unread.")
         except Exception as e:
             logger.info(f"Failed to mark email with ID {email_id} as unread: {e}")
+    
+    def restart(self) -> None:
+        try:
+            if self.imap_client:
+                self.imap_client.logout()
+            logger.info("Restarting IMAP client...")
+        except Exception as e:
+            logger.warning(f"Error during IMAP logout: {e}")
+        finally:
+            self.imap_client = self.client_wrapper.initialize()
+            logger.info("IMAP client restarted successfully.")
 
     def shutdown(self) -> None:
         try:
