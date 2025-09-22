@@ -36,13 +36,14 @@ def process_mailbox(imapService: ImapService, cacheService: Optional[Cache], llm
             llm_response = llm.generate(prompt)
 
             if llm_response["importance"] > 0 and llm_response["confidence"] > 0:
-                importance = (
-                    ImportanceLevel.MOST_IMPORTANT
-                    if llm_response["importance"] > 0.75 else
-                    ImportanceLevel.MEDIUM_IMPORTANT
-                    if llm_response["importance"] > 0.4 else
-                    ImportanceLevel.LEAST_IMPORTANT
-                )
+                if llm_response["importance"] == -1:
+                    importance = ImportanceLevel.SCAM
+                elif llm_response["importance"] > 0.75:
+                    importance = ImportanceLevel.MOST_IMPORTANT
+                elif llm_response["importance"] > 0.4:
+                    importance = ImportanceLevel.MEDIUM_IMPORTANT
+                else:
+                    importance = ImportanceLevel.LEAST_IMPORTANT
                 if cacheService:
                     cacheService.add_record(email_data, importance, llm_response["reasoning"])
                     logger.info(f'Email "{email_data.subject}" cached and moved to {importance.value}')

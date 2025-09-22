@@ -15,6 +15,7 @@ class ImapService:
         self.most_important_folder = config["IMAP"]["most_important_folder"]
         self.medium_important_folder = config["IMAP"]["medium_important_folder"]
         self.less_important_folder = config["IMAP"]["less_important_folder"]
+        self.likely_junk_folder = config["IMAP"]["likely_junk_folder"]
     
     def get_mailbox_list(self) -> list:
         try:
@@ -206,8 +207,10 @@ class ImapService:
             return self.medium_important_folder
         elif importance == ImportanceLevel.MOST_IMPORTANT:
             return self.most_important_folder
+        elif importance == ImportanceLevel.SCAM:
+            return self.likely_junk_folder
         else:
-            raise Exception("In correct importance level passed. Please check if importance level is correct.")
+            raise Exception("Incorrect importance level passed. Please check if importance level is correct.")
 
     def move_to_folder_and_mark_read(self, email_id: str, importance: ImportanceLevel) -> None:
         try:
