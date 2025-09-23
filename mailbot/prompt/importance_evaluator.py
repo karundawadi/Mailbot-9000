@@ -16,7 +16,7 @@ class ImportanceEvaulator(Prompt):
             "Respond ONLY with the following JSON format. No extra text.\n\n"
             "Task: Assign an importance score (0.0-1.0) to this email for an individual. If the email is a scam or phishing attempt, set importance to -1.\n\n"
             "Scoring:\n"
-            "- HIGH (0.8-1.0): Security alerts, account notifications, direct human communication, medical/legal info, calendar invites, job applications\n"
+            "- HIGH (0.8-1.0): Security alerts, account notifications, direct human communication, medical/legal info, calendar invites\n"
             "- MEDIUM (0.4-0.79): Order confirmations, shipping updates, expiring EXISTING paid services/memberships, appointment reminders\n"
             "- LOW (0.0-0.39): Marketing, promotions, newsletters, deals, offers, advertisements, bulk emails\n"
             "- SCAM/PHISHING (-1): Any email that is a scam, phishing, or malicious attempt.\n\n"
@@ -69,13 +69,9 @@ class ImportanceEvaulator(Prompt):
             match = findall(r"<answer>\s*({.*?})\s*</answer>", response, flags=DOTALL)
 
             if not match:
-                # Fallback: extract JSON from code block like ```json\n{...}\n```}`
                 match = findall(r"```(?:json)?\s*({.*?})\s*```", response, flags=DOTALL)
-            
             if not match:
-                # Final fallback: any JSON-looking block in the response
                 match = findall(r"{\s*\"importance\".*?}", response, flags=DOTALL)
-
             if not match:
                 raise ValueError("No valid JSON found in response.")
             extracted_answer = match[0].strip()
